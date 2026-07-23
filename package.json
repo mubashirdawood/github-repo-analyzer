@@ -1,0 +1,16 @@
+{
+  "name": "gitlens-ai",
+  "version": "1.0.0",
+  "description": "GitLens AI - MERN repository evaluator",
+  "private": true,
+  "scripts": {
+    "install-all": "npm install && npm install --prefix server && npm install --prefix client",
+    "server": "npm run dev --prefix server",
+    "client": "npm run dev --prefix client",
+    "dev": "node server/scripts/free-port.js && concurrently \"npm run server\" \"npm run client\"",
+    "free-port": "node server/scripts/free-port.js"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
