@@ -1,0 +1,6 @@
+{
+  "watch": ["."],
+  "ext": "js,mjs,cjs,json,ts,env",
+  "ignore": ["node_modules/**", "scripts/**", "**/*.test.js", "**/*.md"],
+  "delay": 1000
+}
