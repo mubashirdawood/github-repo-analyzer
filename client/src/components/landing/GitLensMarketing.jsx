@@ -5,18 +5,15 @@ import {
   ArrowRight,
   Play,
   Sparkles,
-  ShieldCheck,
-  Zap,
   ChevronDown,
 } from "lucide-react";
 import HeroMockup from "./HeroMockup";
 import { SectionHeader } from "./primitives";
 
-/** Gate product entrance until the section itself is on screen (not during sticky home scroll). */
-const PRODUCT_VIEWPORT = {
+/** First-viewport hero — animate as soon as the section is visible. */
+const HERO_VIEWPORT = {
   once: true,
-  amount: 0.25,
-  margin: "0px 0px -22% 0px",
+  amount: 0.15,
 };
 
 function GithubIcon({ className = "" }) {
@@ -52,13 +49,13 @@ export default function GitLensMarketing() {
 
 function GitLensHero() {
   const sectionRef = useRef(null);
-  const inView = useInView(sectionRef, PRODUCT_VIEWPORT);
+  const inView = useInView(sectionRef, HERO_VIEWPORT);
 
   return (
     <section
       ref={sectionRef}
-      id="product"
-      className="relative scroll-mt-16 overflow-hidden pt-20 pb-16 sm:pt-28 sm:pb-24"
+      id="home"
+      className="relative flex min-h-[calc(100svh-4rem)] scroll-mt-16 items-center overflow-hidden py-12 sm:py-16 lg:py-20"
     >
       <div className="pointer-events-none absolute inset-0 bg-grid mask-fade-b opacity-70" />
       <div
@@ -71,36 +68,30 @@ function GitLensHero() {
 
       <div className="relative mx-auto grid w-full max-w-7xl gap-10 px-4 sm:gap-14 sm:px-6 lg:grid-cols-[1fr_1.1fr] lg:items-center lg:px-8">
         <div className="min-w-0">
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
-            transition={{ duration: 0.5 }}
-            className="inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-full border border-black/5 bg-[var(--brand)] py-1 pl-1 pr-2 text-[11px] font-medium shadow-soft sm:gap-2 sm:pr-3 sm:text-xs"
+          <motion.p
+            initial={{ opacity: 0, y: 12 }}
+            animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 12 }}
+            transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+            className="font-display text-4xl font-semibold tracking-tight text-[var(--ink)] sm:text-5xl md:text-6xl lg:text-[4.25rem]"
           >
-            <span className="shrink-0 whitespace-nowrap rounded-full bg-green-300 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-[var(--brand)] animate-pulse sm:px-2 sm:py-0.5 sm:text-xs">
-              GitLens Beta
-            </span>
-            <span className="min-w-0 flex-1 break-words leading-snug text-white sm:flex-none sm:whitespace-nowrap">
-              Ask questions about any repo →
-            </span>
-          </motion.div>
+            GitLens<span className="text-[var(--brand)]">.ai</span>
+          </motion.p>
 
-          <motion.h2
+          <motion.h1
             initial={{ opacity: 0, y: 20 }}
             animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-            className="mt-6 font-display text-[2rem] font-semibold leading-[1.08] tracking-tight text-[var(--ink)] sm:text-5xl sm:leading-[1.02] md:text-6xl lg:text-[68px]"
+            transition={{ delay: 0.08, duration: 0.75, ease: [0.16, 1, 0.3, 1] }}
+            className="mt-4 max-w-xl font-display text-xl font-semibold leading-snug tracking-tight text-[var(--ink)] sm:mt-5 sm:text-2xl md:text-3xl"
           >
             Understand any{" "}
             <span className="relative inline-block">
-              <span className="text-gradient-brand  animate-pulse">
-                GitHub repo
-              </span>
+              <span className="text-gradient-brand">GitHub repo</span>
               <svg
-                className="absolute -bottom-2 left-0 w-full"
+                className="absolute -bottom-1 left-0 w-full sm:-bottom-2"
                 height="10"
                 viewBox="0 0 200 10"
                 fill="none"
+                aria-hidden="true"
               >
                 <motion.path
                   d="M2 7 Q 100 -3 198 7"
@@ -109,23 +100,22 @@ function GitLensHero() {
                   strokeLinecap="round"
                   initial={{ pathLength: 0 }}
                   animate={inView ? { pathLength: 1 } : { pathLength: 0 }}
-                  transition={{ delay: 0.4, duration: 0.8 }}
+                  transition={{ delay: 0.35, duration: 0.8 }}
                   fill="none"
                 />
               </svg>
             </span>{" "}
             instantly with AI.
-          </motion.h2>
+          </motion.h1>
 
           <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-            transition={{ delay: 0.15, duration: 0.8 }}
-            className="mt-6 max-w-xl text-base text-[var(--muted-foreground)] sm:text-lg"
+            initial={{ opacity: 0, y: 16 }}
+            animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
+            transition={{ delay: 0.18, duration: 0.7 }}
+            className="mt-5 max-w-xl text-base text-[var(--muted-foreground)] sm:text-lg"
           >
-            Paste a GitHub URL. GitLens scans the codebase and produces
-            architecture diagrams, request flows, technology maps, and answers
-            your questions — in seconds.
+            Paste a GitHub URL. Get architecture diagrams, request flows, and
+            answers — in seconds.
           </motion.p>
 
           <RepoInput active={inView} />
@@ -133,7 +123,7 @@ function GitLensHero() {
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
-            transition={{ delay: 0.35 }}
+            transition={{ delay: 0.32 }}
             className="mt-5 flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center"
           >
             <Link
@@ -150,24 +140,6 @@ function GitLensHero() {
               <Play className="h-4 w-4 fill-current" />
               How it works
             </a>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={inView ? { opacity: 1 } : { opacity: 0 }}
-            transition={{ delay: 0.5 }}
-            className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[var(--muted-foreground)]"
-          >
-            <span className="flex items-center gap-1.5">
-              <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" /> Read-only
-              access
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Zap className="h-3.5 w-3.5 text-[var(--brand)]" /> Under 15s
-            </span>
-            <span className="flex items-center gap-1.5">
-              <GithubIcon className="h-3.5 w-3.5" /> Public & private repos
-            </span>
           </motion.div>
         </div>
 

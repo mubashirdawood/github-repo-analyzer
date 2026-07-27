@@ -1,36 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { sendContact } from '../api'
-import FrameSideParticles from '../components/FrameSideParticles'
 import GitLensMarketing from '../components/landing/GitLensMarketing'
-
-const FRAME_COUNT = 179
-const FRAME_SPAN = FRAME_COUNT - 1
-const SCROLL_HEIGHT = '720vh'
-const SMOOTHING = 0.065
-const MAX_FRAME_STEP = 1
-const SETTLE_EPS = 0.0004
-const PRELOAD_PRIORITY = 16
-const DECODE_BATCH = 12
 
 const NAV_LINKS = [
   { id: 'home', label: 'Home' },
-  { id: 'product', label: 'Product' },
   { id: 'features', label: 'Features' },
   { id: 'how-it-works', label: 'How it works' },
   { id: 'pricing', label: 'Pricing' },
   { id: 'contact', label: 'Contact' },
 ]
-
-function framePath(index) {
-  const pad = String(index).padStart(3, '0')
-  const ext = index === FRAME_COUNT ? 'png' : 'jpg'
-  return `/frames/ezgif-frame-${pad}.${ext}`
-}
-
-function easeInOutCubic(t) {
-  return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2
-}
 
 function scrollToId(id) {
   const el = document.getElementById(id)
@@ -38,300 +17,14 @@ function scrollToId(id) {
   el.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
-/** Draw like CSS object-cover — never clears the canvas first (avoids black flash). */
-function drawCover(ctx, img, cw, ch) {
-  const iw = img.naturalWidth || img.width
-  const ih = img.naturalHeight || img.height
-  if (!iw || !ih || !cw || !ch) return
-  const scale = Math.max(cw / iw, ch / ih)
-  const sw = cw / scale
-  const sh = ch / scale
-  const sx = (iw - sw) / 2
-  const sy = (ih - sh) / 2
-  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, cw, ch)
-}
-
 /**
- * Landing: animated scroll hero first, then GitLens marketing sections.
+ * Landing: product hero first, then GitLens marketing sections + contact.
  */
 export default function LandingPage() {
-  const sectionRef = useRef(null)
-  const canvasRef = useRef(null)
-  const frameShellRef = useRef(null)
-  const particlesRef = useRef(null)
-  const outroOverlayRef = useRef(null)
-  const outroContentRef = useRef(null)
-  const framesRef = useRef([])
   const [activeId, setActiveId] = useState('home')
   const [menuOpen, setMenuOpen] = useState(false)
   const [contactStatus, setContactStatus] = useState('idle')
   const [contactError, setContactError] = useState('')
-
-  useEffect(() => {
-    let cancelled = false
-    const frames = new Array(FRAME_COUNT)
-    const preloadLinks = []
-
-    for (let i = 1; i <= Math.min(PRELOAD_PRIORITY, FRAME_COUNT); i += 1) {
-      const link = document.createElement('link')
-      link.rel = 'preload'
-      link.as = 'image'
-      link.href = framePath(i)
-      if (i === 1) link.fetchPriority = 'high'
-      document.head.appendChild(link)
-      preloadLinks.push(link)
-    }
-
-    for (let i = 1; i <= FRAME_COUNT; i += 1) {
-      const img = new Image()
-      img.decoding = 'async'
-      if (i <= PRELOAD_PRIORITY && 'fetchPriority' in img) {
-        img.fetchPriority = 'high'
-      }
-      img.src = framePath(i)
-      frames[i - 1] = img
-    }
-    framesRef.current = frames
-
-    const decodeBatch = async (start) => {
-      if (cancelled || start >= FRAME_COUNT) return
-      const end = Math.min(start + DECODE_BATCH, FRAME_COUNT)
-      const pending = []
-      for (let i = start; i < end; i += 1) {
-        const img = frames[i]
-        if (!img) continue
-        pending.push(
-          (img.decode ? img.decode() : Promise.resolve()).catch(() => {}),
-        )
-      }
-      await Promise.all(pending)
-      if (cancelled) return
-      await new Promise((resolve) => {
-        requestAnimationFrame(() => resolve())
-      })
-      return decodeBatch(end)
-    }
-
-    decodeBatch(0)
-
-    return () => {
-      cancelled = true
-      preloadLinks.forEach((link) => link.remove())
-      framesRef.current = []
-    }
-  }, [])
-
-  useEffect(() => {
-    let targetProgress = 0
-    let smoothProgress = 0
-    let displayFrame = 1
-    let shownFrame = -1
-    let lastOutro = -1
-    let rafId = 0
-    let running = false
-    let scrollable = 1
-    let resizeRaf = 0
-    let ctx = null
-
-    const getCtx = () => {
-      const canvas = canvasRef.current
-      if (!canvas) return null
-      if (!ctx || ctx.canvas !== canvas) {
-        try {
-          ctx = canvas.getContext('2d', { alpha: false })
-        } catch {
-          ctx = canvas.getContext('2d')
-        }
-      }
-      return ctx
-    }
-
-    const syncCanvasSize = () => {
-      const canvas = canvasRef.current
-      const shell = frameShellRef.current
-      if (!canvas || !shell) return false
-      const rect = shell.getBoundingClientRect()
-      const dpr = Math.min(window.devicePixelRatio || 1, 2)
-      const w = Math.max(1, Math.round(rect.width * dpr))
-      const h = Math.max(1, Math.round(rect.height * dpr))
-      if (canvas.width === w && canvas.height === h) return false
-
-      // Resizing a canvas clears it — snapshot first so DevTools toggles don't flash black.
-      let snapshot = null
-      if (canvas.width > 0 && canvas.height > 0 && shownFrame > 0) {
-        snapshot = document.createElement('canvas')
-        snapshot.width = canvas.width
-        snapshot.height = canvas.height
-        const snapCtx = snapshot.getContext('2d')
-        if (snapCtx) snapCtx.drawImage(canvas, 0, 0)
-      }
-
-      canvas.width = w
-      canvas.height = h
-      ctx = null
-      const context = getCtx()
-      if (context && snapshot) {
-        context.drawImage(snapshot, 0, 0, w, h)
-      }
-      shownFrame = -1
-      return true
-    }
-
-    const paintFrame = (index) => {
-      const canvas = canvasRef.current
-      const cached = framesRef.current[index - 1]
-      const context = getCtx()
-      if (!canvas || !context || !cached) return false
-      if (!cached.complete || !(cached.naturalWidth || cached.width)) return false
-      drawCover(context, cached, canvas.width, canvas.height)
-      shownFrame = index
-      return true
-    }
-
-    const showFrame = (index) => {
-      if (index === shownFrame) return
-      // If the target isn't ready yet, keep the last painted pixels (no black flash).
-      if (!paintFrame(index)) return
-    }
-
-    const cacheMetrics = () => {
-      const section = sectionRef.current
-      if (!section) {
-        scrollable = 1
-        return
-      }
-      scrollable = Math.max(section.offsetHeight - window.innerHeight, 1)
-    }
-
-    const applyOutro = (outro) => {
-      if (outro === lastOutro) return
-      lastOutro = outro
-
-      const shell = frameShellRef.current
-      if (shell) {
-        shell.style.filter = `blur(${outro * 10}px) brightness(${1 - outro * 0.25})`
-        shell.style.transform = `scale(${1 - outro * 0.02})`
-      }
-
-      const particles = particlesRef.current
-      if (particles) {
-        particles.style.opacity = String(1 - outro)
-      }
-
-      const overlay = outroOverlayRef.current
-      if (overlay) {
-        overlay.style.opacity = String(outro)
-        overlay.style.visibility = outro > 0.02 ? 'visible' : 'hidden'
-      }
-
-      const content = outroContentRef.current
-      if (content) {
-        content.style.pointerEvents = outro > 0.4 ? 'auto' : 'none'
-      }
-    }
-
-    const readScrollProgress = () => {
-      const section = sectionRef.current
-      if (!section) return 0
-      const top = section.getBoundingClientRect().top
-      const scrolled = Math.min(Math.max(-top, 0), scrollable)
-      return scrolled / scrollable
-    }
-
-    const tick = () => {
-      targetProgress = readScrollProgress()
-      smoothProgress += (targetProgress - smoothProgress) * SMOOTHING
-      const deltaProgress = targetProgress - smoothProgress
-      if (deltaProgress < SETTLE_EPS && deltaProgress > -SETTLE_EPS) {
-        smoothProgress = targetProgress
-      }
-
-      const clamped = smoothProgress < 0 ? 0 : smoothProgress > 1 ? 1 : smoothProgress
-      const eased = easeInOutCubic(clamped)
-      const idealFrame = Math.min(
-        FRAME_COUNT,
-        Math.max(1, Math.round(eased * FRAME_SPAN) + 1),
-      )
-
-      const delta = idealFrame - displayFrame
-      if (delta !== 0) {
-        displayFrame += Math.sign(delta) * Math.min(Math.abs(delta), MAX_FRAME_STEP)
-        showFrame(displayFrame)
-      } else if (shownFrame !== displayFrame) {
-        // Retry paint when decode catches up (e.g. after resize / DevTools toggle).
-        showFrame(displayFrame)
-      }
-
-      const outro = clamped <= 0.9 ? 0 : clamped >= 1 ? 1 : (clamped - 0.9) / 0.1
-      applyOutro(outro)
-
-      const settled =
-        smoothProgress === targetProgress &&
-        displayFrame === idealFrame &&
-        shownFrame === displayFrame
-      if (settled) {
-        running = false
-        rafId = 0
-        return
-      }
-
-      rafId = requestAnimationFrame(tick)
-    }
-
-    const startLoop = () => {
-      if (running) return
-      running = true
-      rafId = requestAnimationFrame(tick)
-    }
-
-    const onScroll = () => {
-      targetProgress = readScrollProgress()
-      startLoop()
-    }
-
-    // DevTools mobile toggle fires many resizes — coalesce to one paint pass.
-    const onResize = () => {
-      if (resizeRaf) cancelAnimationFrame(resizeRaf)
-      resizeRaf = requestAnimationFrame(() => {
-        resizeRaf = 0
-        cacheMetrics()
-        syncCanvasSize()
-        paintFrame(displayFrame)
-        targetProgress = readScrollProgress()
-        startLoop()
-      })
-    }
-
-    cacheMetrics()
-    syncCanvasSize()
-    targetProgress = readScrollProgress()
-    applyOutro(0)
-    // Paint frame 1 as soon as it is available; retry via the loop if still loading.
-    if (!paintFrame(1)) {
-      const first = framesRef.current[0]
-      if (first) {
-        const onReady = () => {
-          syncCanvasSize()
-          paintFrame(1)
-        }
-        if (first.complete) onReady()
-        else first.addEventListener('load', onReady, { once: true })
-      }
-    }
-    startLoop()
-
-    window.addEventListener('scroll', onScroll, { passive: true })
-    window.addEventListener('resize', onResize, { passive: true })
-
-    return () => {
-      window.removeEventListener('scroll', onScroll)
-      window.removeEventListener('resize', onResize)
-      if (rafId) cancelAnimationFrame(rafId)
-      if (resizeRaf) cancelAnimationFrame(resizeRaf)
-      running = false
-      ctx = null
-    }
-  }, [])
 
   useEffect(() => {
     const nodes = NAV_LINKS.map(({ id }) => document.getElementById(id)).filter(Boolean)
@@ -469,72 +162,11 @@ export default function LandingPage() {
         )}
       </header>
 
-      {/* Home — scroll animation (kept from this project) */}
-      <section id="home" ref={sectionRef} className="relative scroll-mt-16" style={{ height: SCROLL_HEIGHT }}>
-        <div className="sticky top-0  flex h-screen w-full items-center justify-center overflow-hidden bg-zinc-100 px-5 pb-8 pt-20 sm:px-10 sm:pb-10 sm:pt-24">
-          <FrameSideParticles ref={particlesRef} />
+      {/* Spacer for fixed header — product hero starts immediately below */}
+      <div className="h-16" aria-hidden="true" />
 
-          <div
-            ref={frameShellRef}
-            className="relative z-[6] w-full max-w-5xl overflow-hidden rounded-2xl border-[3px] border-zinc-950 bg-zinc-950 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.45)] transition-[filter,transform] duration-500 ease-out sm:rounded-3xl sm:border-4"
-            style={{
-              maxHeight: 'calc(100vh - 8.5rem)',
-              aspectRatio: '16 / 9',
-              filter: 'blur(0px) brightness(1)',
-              transform: 'scale(1)',
-            }}
-          >
-            <canvas
-              ref={canvasRef}
-              aria-hidden="true"
-              className="block h-full w-full select-none"
-            />
-          </div>
-
-          <div
-            ref={outroOverlayRef}
-            className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center px-4 pt-16 transition-opacity duration-500"
-            style={{
-              opacity: 0,
-              visibility: 'hidden',
-            }}
-          >
-            <div className="absolute inset-0 bg-white/35 backdrop-blur-md" aria-hidden="true" />
-            <div
-              ref={outroContentRef}
-              className="relative z-10 max-w-xl px-6 py-8 text-center"
-              style={{ pointerEvents: 'none' }}
-            >
-              <h1 className="text-4xl font-bold tracking-tight text-zinc-900 sm:text-5xl">
-                GitLens<span className="text-sky-600">.ai</span>
-              </h1>
-              <p className="mt-4 text-base text-zinc-600 sm:text-lg">
-                Understand any GitHub codebase, faster.
-              </p>
-              <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-                <Link
-                  to="/login"
-                  className="inline-flex rounded-xl bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800"
-                >
-                  Get started
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => goTo('product')}
-                  className="inline-flex rounded-xl border border-zinc-300 bg-white/90 px-5 py-2.5 text-sm font-medium text-zinc-800 transition-colors hover:bg-white"
-                >
-                  Explore product
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* GitLens marketing UI (hero + rest) */}
       <GitLensMarketing />
 
-      {/* Contact */}
       <section id="contact" className="scroll-mt-16 border-t border-zinc-800 bg-black/20 ">
         <div className="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-xl text-center">
